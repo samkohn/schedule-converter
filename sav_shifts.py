@@ -48,7 +48,10 @@ class PersonSchedule:
     @staticmethod
     def shifts_to_str(shift_list):
         return "\n".join(
-            sorted([f"{shift[0]} from {shift[1]}" for shift in shift_list])
+            sorted(
+                [f"{shift[0]} from {shift[1]}" for shift in shift_list],
+                key=lambda shift_str: shift_str.split(" from ")[0].split(", ")[1],
+            )
         )
 
     def first_name(self):
@@ -90,7 +93,10 @@ class MailMergeRow:
     @staticmethod
     def shifts_to_str(shift_list):
         return "\n".join(
-            sorted([f"{shift[0]} from {shift[1]}" for shift in shift_list])
+            sorted(
+                [f"{shift[0]} from {shift[1]}" for shift in shift_list],
+                key=lambda shift_str: shift_str.split(" from ")[0].split(", ")[1],
+            )
         )
 
     def list_headers(self):
@@ -352,6 +358,7 @@ def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
                 new_version_person.phonebank_shifts,
                 {},
             )
+            print(f"New person: {new_mailmergerow}")
             existing_people[new_mailmergerow.full_name] = new_mailmergerow
     write_csv(output_filename, list(existing_people.values()))
 
