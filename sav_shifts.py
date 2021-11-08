@@ -1,3 +1,4 @@
+import argparse
 import csv
 from dataclasses import dataclass, field as dc_field
 import re
@@ -39,7 +40,7 @@ class PersonSchedule:
             "Full name",
             "First name",
             "Last name",
-            "Phone",
+            "cell",
             "Walkthrough shifts",
             "Phonebank shifts",
         ]
@@ -121,10 +122,24 @@ def columns_lookup(index):
     if remainder in (1, 2):
         base = index // 5
         day = first_day + base
-        return f"11/{day:02d}"
+        return f"{day_lookup[day]}, 11/{day:02d}"
 
 
 good_columns = [x for x in range(59) if x % 5 in (1, 2)]
+day_lookup = {
+    8: "Monday",
+    9: "Tuesday",
+    10: "Wednesday",
+    11: "Thursday",
+    12: "Friday",
+    13: "Saturday",
+    14: "Sunday",
+    15: "Monday",
+    16: "Tuesday",
+    17: "Wednesday",
+    18: "Thursday",
+    19: "Friday",
+}
 
 
 def rows_lookup(index):
@@ -156,7 +171,6 @@ def rows_lookup(index):
     ]
 
     row_boundaries = [sum(row_lengths[:i]) for i in range(1, len(row_lengths) + 1)]
-    print(row_boundaries)
 
     if index < walkthrough_start_row:
         return (None, None)
@@ -167,9 +181,12 @@ def rows_lookup(index):
     else:  # if no break
         raise ValueError("Couldn't find appropriate hour slot")
     if hour == 15:
-        time_str = "3:00 - 4:30"
+        time_str = "3:00PM - 4:30PM"
     else:
-        time_str = f"{hour_24_to_12(hour)}:00 - {hour_24_to_12(hour + 1)}:00"
+        time_str = (
+            f"{hour_24_to_12(hour)}:00{ampm(hour)} - "
+            f"{hour_24_to_12(hour + 1)}:00{ampm(hour)}"
+        )
     if hour < 16:
         return ("walkthrough", time_str)
     elif hour == 16:
@@ -206,6 +223,13 @@ def rows_lookup(index):
 
 def hour_24_to_12(hour_24):
     return (hour_24 - 1) % 12 + 1
+
+
+def ampm(hour):
+    if hour < 12:
+        return "AM"
+    if hour >= 12:
+        return "PM"
 
 
 ### Regexes
@@ -301,7 +325,6 @@ def scan_mailmerge_csv(filename):
             if i == 0:
                 header = row
                 additional_columns = row[6:]
-                print(header)
                 continue
             additional_values = dict(zip(additional_columns, row[6:]))
             person_row = MailMergeRow(*row[:6], additional_values)
@@ -314,11 +337,6 @@ def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
     new_version_people = load_grid_schedule(grid_filename)
     existing_people = scan_mailmerge_csv(existing_mailmerge_filename)
     for new_version_person in new_version_people:
-        if new_version_person.name == "Sam Kohn":
-            print(new_version_person)
-            print(new_version_person.name in existing_people)
-            print(new_version_person.walkthrough_shifts)
-            print(new_version_person.phonebank_shifts)
         if new_version_person.name in existing_people:
             existing_row = existing_people[new_version_person.name]
             # update phonebank and walkthrough shifts
@@ -339,6 +357,25 @@ def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
 
 
 if __name__ == "__main__":
-    provided_filename = input("Enter file name: ")
-    raw_signups = aggregate_signups(provided_filename)
-    print(len(raw_signups))
+    parser = argparse.ArgumentParser(
+        description="""Convert the SAV organizing shift signup schedule grid
+into a consolidated spreadsheet with 1 row per person
+listing all their shifts.
+
+Suggested workflow is to run this once to obtain a starting spreadsheet,
+then add people's email addresses in a new column to the right.
+Then when you run the script again, include "--update <existing_output.csv>"
+so that the email addresses and other custom columns are preserved
+and copied appropriately into the new output.
+Do not rearrange the first 6 columns of the output!
+"""
+    )
+    parser.add_argument("schedule_grid")
+    parser.add_argument("outfile")
+    parser.add_argument("--update")
+    args = parser.parse_args()
+    if args.update is None:
+        people = load_grid_schedule(args.schedule_grid)
+        write_csv(args.outfile, people)
+    else:
+        update_csv(args.schedule_grid, args.update, args.outfile)
