@@ -131,7 +131,8 @@ def columns_lookup(index):
         return f"{day_lookup[day]}, 11/{day:02d}"
 
 
-good_columns = [x for x in range(59) if x % 5 in (1, 2)]
+good_columns = [x for x in range(59) if (x % 5 in (1, 2)) and (x < 26 or x > 34)]
+weekend_columns = [26, 27, 31, 32]
 day_lookup = {
     8: "Monday",
     9: "Tuesday",
@@ -151,12 +152,12 @@ day_lookup = {
 def rows_lookup(index):
     first_hour = 10
     walkthrough_start_row = 6
-    num_rows_slot_10to11 = 6
-    num_rows_slot_11to12 = 7
-    num_rows_slot_12to1 = 6
-    num_rows_slot_1to2 = 7
-    num_rows_slot_2to3 = 7
-    num_rows_slot_3to430 = 6
+    num_rows_slot_10to11 = 7
+    num_rows_slot_11to12 = 8
+    num_rows_slot_12to1 = 8
+    num_rows_slot_1to2 = 8
+    num_rows_slot_2to3 = 8
+    num_rows_slot_3to430 = 8
     num_rows_slot_debrief = 4
     num_rows_slot_5to6 = 5
     num_rows_slot_6to7 = 6
@@ -200,31 +201,54 @@ def rows_lookup(index):
     else:
         return ("phonebank", time_str)
 
-    # if index < 41:
-    # hour_index = (index - 6) // 6
-    # hour = first_hour + hour_index
-    # if hour_index < 5:
-    # time_str = f"{hour_24_to_12(hour)}:00 - {hour_24_to_12(hour + 1)}:00"
-    # else:
-    # time_str = f"{hour_24_to_12(hour)}:00 - {hour_24_to_12(hour + 1)}:30"
-    # return ("walkthrough", time_str)
-    # elif index >= 45 and index < 56:  # phonebanks
-    # slot_5to6 = {45, 46, 47}
-    # slot_6to7 = {48, 49, 50, 51, 52}
-    # slot_7to8 = {53, 54, 55}
-    # if index in slot_5to6:
-    # time_str = "5:00 - 6:00"
-    # elif index in slot_6to7:
-    # time_str = "6:00 - 7:00"
-    # elif index in slot_7to8:
-    # time_str = "7:00 - 8:00"
-    # else:
-    # raise ValueError(
-    # "Messed up row-to-time phone bank conversion: " + f"(row index {index})"
-    # )
-    # return ("phonebank", time_str)
-    # else:
-    # return (None, None)
+
+def weekend_rows_lookup(index):
+    walkthrough_start_row = 6
+    num_rows_slot_10to1 = 7
+    num_rows_slot_2to5 = 5
+    num_rows_slot_phonebanklabel = 3
+    num_rows_slot_2to3 = 8
+    num_rows_slot_3to4 = 8
+    num_rows_slot_4to5 = 8
+    num_rows_slot_5to6 = 11
+
+    row_lengths = [
+        walkthrough_start_row,
+        num_rows_slot_10to1,
+        num_rows_slot_2to5,
+        num_rows_slot_phonebanklabel,
+        num_rows_slot_2to3,
+        num_rows_slot_3to4,
+        num_rows_slot_4to5,
+        num_rows_slot_5to6,
+    ]
+
+    row_boundaries = [sum(row_lengths[:i]) for i in range(1, len(row_lengths) + 1)]
+
+    if index < walkthrough_start_row:
+        return (None, None)
+    for i, boundary in enumerate(row_boundaries):
+        if index < boundary:
+            shift_slot = i
+            break
+    else:  # if no break
+        raise ValueError("Couldn't find appropriate hour slot")
+    shift_slots = [
+        "10:00AM - 1:00PM",
+        "2:00PM - 5:00PM",
+        None,
+        "2:00PM - 3:00PM",
+        "3:00PM - 4:00PM",
+        "4:00PM - 5:00PM",
+        "5:00PM - 6:00PM",
+    ]
+    time_str = shift_slots[shift_slot]
+    if shift_slot < 2:
+        return ("walkthrough", time_str)
+    elif shift_slot == 2:
+        return (None, None)
+    else:
+        return ("phonebank", time_str)
 
 
 def hour_24_to_12(hour_24):
@@ -243,6 +267,17 @@ NAME_REGEX = r"^[^0-9(\n]+[^0-9,?(\n- ]"
 PHONE_REGEX = r"((\(?[0-9]\)?[-.]?){10})"
 
 
+def extract_name_phone(content):
+    name = re.search(NAME_REGEX, content)
+    if name:
+        name = name.group(0)
+    phone = re.search(PHONE_REGEX, content)
+    if phone:
+        phone = phone.group(0)
+        phone = "".join([s for s in phone if s in "0123456789"])
+    return (name, phone)
+
+
 def scan_csv(filename):
     signups = []
     with open(filename, "r") as infile:
@@ -253,15 +288,28 @@ def scan_csv(filename):
             for column in good_columns:
                 if len(row[column]) > 5:
                     content = row[column]
-                    name = re.search(NAME_REGEX, content)
-                    if name:
-                        name = name.group(0)
-                    phone = re.search(PHONE_REGEX, content)
-                    if phone:
-                        phone = phone.group(0)
-                        phone = "".join([s for s in phone if s in "0123456789"])
+                    name, phone = extract_name_phone(content)
                     date = columns_lookup(column)
                     shift_type, time = rows_lookup(row_number)
+                    if time is not None:
+                        signups.append(
+                            SignupCell(
+                                content,
+                                row_number,
+                                column,
+                                date,
+                                time,
+                                shift_type,
+                                name,
+                                phone,
+                            )
+                        )
+            for column in weekend_columns:
+                if len(row[column]) > 5:
+                    content = row[column]
+                    name, phone = extract_name_phone(content)
+                    date = columns_lookup(column)
+                    shift_type, time = weekend_rows_lookup(row_number)
                     if time is not None:
                         signups.append(
                             SignupCell(
