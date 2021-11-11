@@ -154,11 +154,11 @@ day_lookup = {
 def rows_lookup(index):
     first_hour = 10
     walkthrough_start_row = 6
-    num_rows_slot_10to11 = 7
-    num_rows_slot_11to12 = 8
-    num_rows_slot_12to1 = 8
+    num_rows_slot_10to11 = 10
+    num_rows_slot_11to12 = 11
+    num_rows_slot_12to1 = 11
     num_rows_slot_1to2 = 8
-    num_rows_slot_2to3 = 8
+    num_rows_slot_2to3 = 9
     num_rows_slot_3to430 = 8
     num_rows_slot_debrief = 4
     num_rows_slot_5to6 = 5
@@ -194,7 +194,7 @@ def rows_lookup(index):
     else:
         time_str = (
             f"{hour_24_to_12(hour)}:00{ampm(hour)} - "
-            f"{hour_24_to_12(hour + 1)}:00{ampm(hour)}"
+            f"{hour_24_to_12(hour + 1)}:00{ampm(hour + 1)}"
         )
     if hour < 16:
         return ("walkthrough", time_str)
@@ -206,12 +206,12 @@ def rows_lookup(index):
 
 def weekend_rows_lookup(index):
     walkthrough_start_row = 6
-    num_rows_slot_10to1 = 7
+    num_rows_slot_10to1 = 10
     num_rows_slot_2to5 = 5
-    num_rows_slot_phonebanklabel = 3
-    num_rows_slot_2to3 = 8
+    num_rows_slot_phonebanklabel = 6
+    num_rows_slot_2to3 = 11
     num_rows_slot_3to4 = 8
-    num_rows_slot_4to5 = 8
+    num_rows_slot_4to5 = 9
     num_rows_slot_5to6 = 11
 
     row_lengths = [
