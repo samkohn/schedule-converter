@@ -133,7 +133,9 @@ def columns_lookup(index):
         return f"{day_lookup[day]}, 11/{day:02d}"
 
 
-good_columns = [x for x in range(59) if (x % 5 in (1, 2)) and (x < 26 or x > 34)]
+good_columns = [
+    x for x in range(59) if (x % 5 in (1, 2)) and x > 9 and (x < 26 or x > 34)
+]
 weekend_columns = [26, 27, 31, 32]
 day_lookup = {
     8: "Monday",
@@ -152,12 +154,13 @@ day_lookup = {
 
 
 def rows_lookup(index):
-    first_hour = 10
+    first_hour = 9
     walkthrough_start_row = 6
+    num_rows_slot_9to10 = 1
     num_rows_slot_10to11 = 10
     num_rows_slot_11to12 = 11
     num_rows_slot_12to1 = 11
-    num_rows_slot_1to2 = 8
+    num_rows_slot_1to2 = 9
     num_rows_slot_2to3 = 9
     num_rows_slot_3to430 = 8
     num_rows_slot_debrief = 4
@@ -167,6 +170,7 @@ def rows_lookup(index):
 
     row_lengths = [
         walkthrough_start_row,
+        num_rows_slot_9to10,
         num_rows_slot_10to11,
         num_rows_slot_11to12,
         num_rows_slot_12to1,
@@ -206,11 +210,11 @@ def rows_lookup(index):
 
 def weekend_rows_lookup(index):
     walkthrough_start_row = 6
-    num_rows_slot_10to1 = 10
+    num_rows_slot_10to1 = 11
     num_rows_slot_2to5 = 5
     num_rows_slot_phonebanklabel = 6
     num_rows_slot_2to3 = 11
-    num_rows_slot_3to4 = 8
+    num_rows_slot_3to4 = 9
     num_rows_slot_4to5 = 9
     num_rows_slot_5to6 = 11
 
