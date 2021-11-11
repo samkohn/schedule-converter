@@ -1,7 +1,9 @@
 import argparse
+import copy
 import csv
 from dataclasses import dataclass, field as dc_field
 import re
+
 import pandas as pd
 
 
@@ -387,6 +389,24 @@ def scan_mailmerge_csv(filename):
     return people
 
 
+def daily_shifts(date_str, existing_mailmerge_filename, output_filename):
+    existing_people = list(scan_mailmerge_csv(existing_mailmerge_filename).values())
+    specific_date_people = []
+    for person in existing_people:
+        walkthroughs = [
+            shift for shift in person.walkthrough_shifts if date_str in shift[0]
+        ]
+        phonebanks = [
+            shift for shift in person.phonebank_shifts if date_str in shift[0]
+        ]
+        if walkthroughs or phonebanks:  # i.e. if either is not empty
+            new_person = copy.deepcopy(person)
+            new_person.walkthrough_shifts = walkthroughs
+            new_person.phonebank_shifts = phonebanks
+            specific_date_people.append(new_person)
+    write_csv(output_filename, specific_date_people)
+
+
 def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
     new_version_people = load_grid_schedule(grid_filename)
     existing_people = scan_mailmerge_csv(existing_mailmerge_filename)
@@ -425,12 +445,15 @@ and copied appropriately into the new output.
 Do not rearrange the first 6 columns of the output!
 """
     )
-    parser.add_argument("schedule_grid")
+    parser.add_argument("infile")
     parser.add_argument("outfile")
     parser.add_argument("--update")
+    parser.add_argument("--daily")
     args = parser.parse_args()
-    if args.update is None:
-        people = load_grid_schedule(args.schedule_grid)
+    if args.update is None and args.daily is None:
+        people = load_grid_schedule(args.infile)
         write_csv(args.outfile, people)
+    elif args.daily is None:
+        update_csv(args.infile, args.update, args.outfile)
     else:
-        update_csv(args.schedule_grid, args.update, args.outfile)
+        daily_shifts(args.daily, args.infile, args.outfile)
