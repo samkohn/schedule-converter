@@ -389,7 +389,7 @@ def scan_mailmerge_csv(filename):
             additional_values = dict(zip(additional_columns, row[6:]))
             person_row = MailMergeRow(*row[:6], additional_values)
             person_row.process_shifts_list()
-            people[person_row.full_name] = person_row
+            people[person_row.full_name.lower()] = person_row
     return people
 
 
@@ -415,8 +415,8 @@ def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
     new_version_people = load_grid_schedule(grid_filename)
     existing_people = scan_mailmerge_csv(existing_mailmerge_filename)
     for new_version_person in new_version_people:
-        if new_version_person.name in existing_people:
-            existing_row = existing_people[new_version_person.name]
+        if new_version_person.name.lower() in existing_people:
+            existing_row = existing_people[new_version_person.name.lower()]
             # update phonebank and walkthrough shifts
             existing_row.walkthrough_shifts = new_version_person.walkthrough_shifts
             existing_row.phonebank_shifts = new_version_person.phonebank_shifts
@@ -431,7 +431,14 @@ def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
                 {},
             )
             print(f"New person: {new_mailmergerow}")
-            existing_people[new_mailmergerow.full_name] = new_mailmergerow
+            existing_people[new_mailmergerow.full_name.lower()] = new_mailmergerow
+    new_version_names = {person.name.lower() for person in new_version_people}
+    to_delete = []
+    for existing_person_name in existing_people:
+        if existing_person_name not in new_version_names:
+            to_delete.append(existing_person_name)
+    for name in to_delete:
+        del existing_people[name]
     write_csv(output_filename, list(existing_people.values()))
 
 
