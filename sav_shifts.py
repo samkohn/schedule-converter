@@ -2,9 +2,8 @@ import argparse
 import copy
 import csv
 from dataclasses import dataclass, field as dc_field
+import json
 import re
-
-import pandas as pd
 
 
 @dataclass
@@ -118,94 +117,113 @@ class MailMergeRow:
         self.phonebank_shifts = self.shifts_to_list(self.phonebank_shifts)
 
 
-def load_5year(filename):
-    full_list = pd.read_csv(filename)
-    required_fields = ["FullName", "Email"]
-    return full_list[required_fields]
+def columns_lookup(config, column_number):
+    if column_number not in config["columns"]:
+        column_number = column_number - 1
+    return config["columns"][column_number]
+    # first_day = 8
+    # remainder = index % 5
+    # if remainder in (1, 2):
+        # base = index // 5
+        # day = first_day + base
+        # return f"{day_lookup[day]}, 11/{day:02d}"
 
 
-def columns_lookup(index):
-    first_day = 8
-    remainder = index % 5
-    if remainder in (1, 2):
-        base = index // 5
-        day = first_day + base
-        return f"{day_lookup[day]}, 11/{day:02d}"
+def good_columns(config):
+    columns = []
+    for column in config["columns"]:
+        columns.append(column)
+        columns.append(column + 1)
+    return columns
+# good_columns = [
+    # x for x in range(59) if (x % 5 in (1, 2)) and x > 9 and (x < 26 or x > 34)
+# ]
+# weekend_columns = [26, 27, 31, 32]
+def weekend_columns(config):
+    columns = []
+    for column in config["weekend_columns"]:
+        columns.append(column)
+        columns.append(column + 1)
+    return columns
+
+# day_lookup = {
+    # 8: "Monday",
+    # 9: "Tuesday",
+    # 10: "Wednesday",
+    # 11: "Thursday",
+    # 12: "Friday",
+    # 13: "Saturday",
+    # 14: "Sunday",
+    # 15: "Monday",
+    # 16: "Tuesday",
+    # 17: "Wednesday",
+    # 18: "Thursday",
+    # 19: "Friday",
+# }
 
 
-good_columns = [
-    x for x in range(59) if (x % 5 in (1, 2)) and x > 9 and (x < 26 or x > 34)
-]
-weekend_columns = [26, 27, 31, 32]
-day_lookup = {
-    8: "Monday",
-    9: "Tuesday",
-    10: "Wednesday",
-    11: "Thursday",
-    12: "Friday",
-    13: "Saturday",
-    14: "Sunday",
-    15: "Monday",
-    16: "Tuesday",
-    17: "Wednesday",
-    18: "Thursday",
-    19: "Friday",
-}
+def rows_lookup(config, index):
+    row_number = index + 1
+    time_block_defs = config["rows"]
+    last_block = None
+    for time_block_start_row in sorted(time_block_defs):
+        if time_block_start_row > row_number:
+            return "walkthrough", last_block
+        else:
+            last_block = time_block_defs[time_block_start_row]
 
+    # first_hour = 9
+    # walkthrough_start_row = 6
+    # num_rows_slot_9to10 = 1
+    # num_rows_slot_10to11 = 10
+    # num_rows_slot_11to12 = 11
+    # num_rows_slot_12to1 = 11
+    # num_rows_slot_1to2 = 10
+    # num_rows_slot_2to3 = 9
+    # num_rows_slot_3to430 = 8
+    # num_rows_slot_debrief = 4
+    # num_rows_slot_5to6 = 9
+    # num_rows_slot_6to7 = 8
+    # num_rows_slot_7to8 = 4
 
-def rows_lookup(index):
-    first_hour = 9
-    walkthrough_start_row = 6
-    num_rows_slot_9to10 = 1
-    num_rows_slot_10to11 = 10
-    num_rows_slot_11to12 = 11
-    num_rows_slot_12to1 = 11
-    num_rows_slot_1to2 = 9
-    num_rows_slot_2to3 = 9
-    num_rows_slot_3to430 = 8
-    num_rows_slot_debrief = 4
-    num_rows_slot_5to6 = 5
-    num_rows_slot_6to7 = 6
-    num_rows_slot_7to8 = 4
+    # row_lengths = [
+        # walkthrough_start_row,
+        # num_rows_slot_9to10,
+        # num_rows_slot_10to11,
+        # num_rows_slot_11to12,
+        # num_rows_slot_12to1,
+        # num_rows_slot_1to2,
+        # num_rows_slot_2to3,
+        # num_rows_slot_3to430,
+        # num_rows_slot_debrief,
+        # num_rows_slot_5to6,
+        # num_rows_slot_6to7,
+        # num_rows_slot_7to8,
+    # ]
 
-    row_lengths = [
-        walkthrough_start_row,
-        num_rows_slot_9to10,
-        num_rows_slot_10to11,
-        num_rows_slot_11to12,
-        num_rows_slot_12to1,
-        num_rows_slot_1to2,
-        num_rows_slot_2to3,
-        num_rows_slot_3to430,
-        num_rows_slot_debrief,
-        num_rows_slot_5to6,
-        num_rows_slot_6to7,
-        num_rows_slot_7to8,
-    ]
+    # row_boundaries = [sum(row_lengths[:i]) for i in range(1, len(row_lengths) + 1)]
 
-    row_boundaries = [sum(row_lengths[:i]) for i in range(1, len(row_lengths) + 1)]
-
-    if index < walkthrough_start_row:
-        return (None, None)
-    for i, boundary in enumerate(row_boundaries):
-        if index < boundary:
-            hour = i - 1 + first_hour
-            break
-    else:  # if no break
-        raise ValueError("Couldn't find appropriate hour slot")
-    if hour == 15:
-        time_str = "3:00PM - 4:30PM"
-    else:
-        time_str = (
-            f"{hour_24_to_12(hour)}:00{ampm(hour)} - "
-            f"{hour_24_to_12(hour + 1)}:00{ampm(hour + 1)}"
-        )
-    if hour < 16:
-        return ("walkthrough", time_str)
-    elif hour == 16:
-        return (None, None)
-    else:
-        return ("phonebank", time_str)
+    # if index < walkthrough_start_row:
+        # return (None, None)
+    # for i, boundary in enumerate(row_boundaries):
+        # if index < boundary:
+            # hour = i - 1 + first_hour
+            # break
+    # else:  # if no break
+        # raise ValueError("Couldn't find appropriate hour slot")
+    # if hour == 15:
+        # time_str = "3:00PM - 4:30PM"
+    # else:
+        # time_str = (
+            # f"{hour_24_to_12(hour)}:00{ampm(hour)} - "
+            # f"{hour_24_to_12(hour + 1)}:00{ampm(hour + 1)}"
+        # )
+    # if hour < 16:
+        # return ("walkthrough", time_str)
+    # elif hour == 16:
+        # return (None, None)
+    # else:
+        # return ("phonebank", time_str)
 
 
 def weekend_rows_lookup(index):
@@ -284,25 +302,27 @@ def extract_name_phone(content):
     return (name, phone)
 
 
-def scan_csv(filename):
+def scan_csv(filename, config):
     signups = []
     with open(filename, "r") as infile:
         csv_reader = csv.reader(infile)
-        for row_number, row in enumerate(csv_reader):
-            if row_number < 6:
+        for row_index, row in enumerate(csv_reader):
+            row_number = row_index + 1
+            if row_number < min(config["rows"].keys()):
                 continue
-            for column in good_columns:
-                if len(row[column]) > 5:
-                    content = row[column]
+            for column_number in good_columns(config):
+                column_index = column_number - 1
+                if len(row[column_index]) > 5:
+                    content = row[column_index]
                     name, phone = extract_name_phone(content)
-                    date = columns_lookup(column)
-                    shift_type, time = rows_lookup(row_number)
+                    date = columns_lookup(config, column_number)
+                    shift_type, time = rows_lookup(config, row_index)
                     if time is not None:
                         signups.append(
                             SignupCell(
                                 content,
                                 row_number,
-                                column,
+                                column_number,
                                 date,
                                 time,
                                 shift_type,
@@ -310,11 +330,11 @@ def scan_csv(filename):
                                 phone,
                             )
                         )
-            for column in weekend_columns:
+            for column in weekend_columns(config):
                 if len(row[column]) > 5:
                     content = row[column]
                     name, phone = extract_name_phone(content)
-                    date = columns_lookup(column)
+                    date = columns_lookup(config, column)
                     shift_type, time = weekend_rows_lookup(row_number)
                     if time is not None:
                         signups.append(
@@ -371,8 +391,8 @@ def write_csv(filename, people):
             csv_writer.writerow(person.to_list())
 
 
-def load_grid_schedule(filename):
-    signup_cells = scan_csv(filename)
+def load_grid_schedule(filename, config):
+    signup_cells = scan_csv(filename, config)
     people = aggregate_signups(signup_cells)
     return sorted(people)
 
@@ -411,8 +431,8 @@ def daily_shifts(date_str, existing_mailmerge_filename, output_filename):
     write_csv(output_filename, specific_date_people)
 
 
-def update_csv(grid_filename, existing_mailmerge_filename, output_filename):
-    new_version_people = load_grid_schedule(grid_filename)
+def update_csv(grid_filename, existing_mailmerge_filename, output_filename, config):
+    new_version_people = load_grid_schedule(grid_filename, config)
     existing_people = scan_mailmerge_csv(existing_mailmerge_filename)
     for new_version_person in new_version_people:
         if new_version_person.name.lower() in existing_people:
@@ -460,11 +480,18 @@ Do not rearrange the first 6 columns of the output!
     parser.add_argument("outfile")
     parser.add_argument("--update")
     parser.add_argument("--daily")
+    parser.add_argument("--config", default="config.json")
     args = parser.parse_args()
+    with open(args.config, "r") as configfile:
+        config = json.load(configfile)
+        for sub_dict in config:
+            for k, v in config[sub_dict].copy().items():
+                config[sub_dict][int(k)] = v
+                del config[sub_dict][k]
     if args.update is None and args.daily is None:
-        people = load_grid_schedule(args.infile)
+        people = load_grid_schedule(args.infile, config)
         write_csv(args.outfile, people)
     elif args.daily is None:
-        update_csv(args.infile, args.update, args.outfile)
+        update_csv(args.infile, args.update, args.outfile, config)
     else:
         daily_shifts(args.daily, args.infile, args.outfile)
