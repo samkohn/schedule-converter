@@ -2,3 +2,5 @@
 __pycache__
 *.diff
 *.pyc
+credentials.json
+token.json
