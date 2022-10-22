@@ -7,14 +7,15 @@
         "22": "Friday, 4/22"
     },
     "rows": {
-        "7": "9:30AM - 10:30AM",
-        "11": "10:30AM - 11:30AM",
-        "15": "11:30AM - 12:30PM",
-        "19": "12:30PM - 1:30PM",
-        "23": "1:30PM - 2:30PM",
-        "27": "2:30PM - 3:30PM",
-        "32": "3:30PM - 4:30PM",
-        "37": null
+        "7": ["9:30AM - 10:30AM", "walkthrough"],
+        "11": ["10:30AM - 11:30AM", "walkthrough"],
+        "15": ["11:30AM - 12:30PM", "walkthrough"],
+        "19": ["12:30PM - 1:30PM", "walkthrough"],
+        "23": ["1:30PM - 2:30PM", "walkthrough"],
+        "27": ["2:30PM - 3:30PM", "walkthrough"],
+        "32": ["3:30PM - 4:30PM", "walkthrough"],
+        "37": null,
+        "39": ["5PM - 6PM", "phonebank"]
     },
     "weekend_columns": {},
     "weekend_rows": {}
