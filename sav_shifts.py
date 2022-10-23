@@ -5,8 +5,10 @@ from dataclasses import dataclass, field as dc_field
 import json
 import re
 
+
 class SpreadsheetLocationError(Exception):
     pass
+
 
 @dataclass
 class SignupCell:
@@ -180,12 +182,6 @@ def columns_lookup(config, column_number):
     if column_number not in config["columns"]:
         column_number = column_number - 1
     return config["columns"][column_number]
-    # first_day = 8
-    # remainder = index % 5
-    # if remainder in (1, 2):
-        # base = index // 5
-        # day = first_day + base
-        # return f"{day_lookup[day]}, 11/{day:02d}"
 
 
 def weekday_columns(config):
@@ -195,6 +191,7 @@ def weekday_columns(config):
         columns.append(column + 2)
     return columns
 
+
 def weekend_columns(config):
     columns = []
     for column in config["weekend_columns"]:
@@ -202,8 +199,10 @@ def weekend_columns(config):
         columns.append(column + 2)
     return columns
 
+
 def good_columns(config):
     return weekday_columns(config) + weekend_columns(config)
+
 
 def schedule_lookup(config, row_number, column_number):
     """Convert from a row and column number to event date, time and shift type.
@@ -217,14 +216,18 @@ def schedule_lookup(config, row_number, column_number):
         row_key = "weekend_rows"
         column_key = "weekend_columns"
     else:
-        raise SpreadsheetLocationError(f"Column {column_number} isn't a cell for someone's name")
+        raise SpreadsheetLocationError(
+            f"Column {column_number} isn't a cell for someone's name"
+        )
     # For columns, could be Organizer 1 or Organizer 2 so have to check
     if column_number in config[column_key]:
         date = config[column_key][column_number]
     elif column_number - 2 in config[column_key]:
         date = config[column_key][column_number - 2]
     else:
-        raise SpreadsheetLocationError(f"Column {column_number} isn't conforming to the config!")
+        raise SpreadsheetLocationError(
+            f"Column {column_number} isn't conforming to the config!"
+        )
 
     # Look up the shift type and time from the row
     time_block_defs = config[row_key]
@@ -247,7 +250,6 @@ def parse_turfHQ(turf_string):
         return turf, None
     else:
         return turf, split[1].strip()
-
 
 def hour_24_to_12(hour_24):
     return (hour_24 - 1) % 12 + 1
@@ -312,20 +314,18 @@ def parse_cell(name, email_phone_string, turf_string, row_index, column_index, c
     date, time, shift_type = schedule_lookup(config, row_number, column_number)
     turf, hq = parse_turfHQ(turf_string)
     if time is not None:
-        return (
-            SignupCell(
-                [name, email_phone_string],
-                row_number,
-                column_number,
-                date,
-                time,
-                shift_type,
-                name,
-                phone,
-                email,
-                turf,
-                hq
-            )
+        return SignupCell(
+            [name, email_phone_string],
+            row_number,
+            column_number,
+            date,
+            time,
+            shift_type,
+            name,
+            phone,
+            email,
+            turf,
+            hq,
         )
 
 
@@ -368,7 +368,7 @@ def write_csv(filename, people):
             csv_writer.writerow(person.to_list())
 
 
-def load_grid_schedule(filename, config):
+def load_grid_schedule_csv(filename, config):
     signup_cells = scan_csv(filename, config)
     people = aggregate_signups(signup_cells)
     return sorted(people)
@@ -384,15 +384,29 @@ def scan_mailmerge_csv(filename):
                 header = row
                 additional_columns = row[6:]
                 continue
-            additional_values = dict(zip(additional_columns, row[6:]))
-            person_row = MailMergeRow(*row[:6], additional_values)
-            person_row.process_shifts_list()
+            person_row = parse_mailmerge_row(row, additional_columns)
             people[person_row.full_name.lower()] = person_row
     return people
 
 
-def daily_shifts(date_str, existing_mailmerge_filename, output_filename):
+def parse_mailmerge_row(row, additional_columns):
+    """Parse a row (list of strings) from the output-formatted spreadsheet into a
+    MailMergeRow.
+    """
+    additional_values = dict(zip(additional_columns, row[6:]))
+    person_row = MailMergeRow(*row[:6], additional_values)
+    person_row.process_shifts_list()
+    return person_row
+
+
+def daily_shifts_csv(date_str, existing_mailmerge_filename, output_filename):
     existing_people = list(scan_mailmerge_csv(existing_mailmerge_filename).values())
+    specific_date_people = filter_daily_shifts(date_str, existing_people)
+    write_csv(output_filename, specific_date_people)
+
+
+def filter_daily_shifts(date_str, people):
+    existing_people = people
     specific_date_people = []
     for person in existing_people:
         walkthroughs = [
@@ -406,12 +420,20 @@ def daily_shifts(date_str, existing_mailmerge_filename, output_filename):
             new_person.walkthrough_shifts = walkthroughs
             new_person.phonebank_shifts = phonebanks
             specific_date_people.append(new_person)
-    write_csv(output_filename, specific_date_people)
+    return specific_date_people
 
 
 def update_csv(grid_filename, existing_mailmerge_filename, output_filename, config):
-    new_version_people = load_grid_schedule(grid_filename, config)
+    new_version_people = load_grid_schedule_csv(grid_filename, config)
     existing_people = scan_mailmerge_csv(existing_mailmerge_filename)
+    existing_people = update_with_new_shifts(existing_people, new_version_people)
+    write_csv(output_filename, list(existing_people.values()))
+
+
+def update_with_new_shifts(existing_people, new_version_people):
+    """Modify in-place the existing_people dict to incorporate changes from
+    new_version_people.
+    """
     for new_version_person in new_version_people:
         if new_version_person.name.lower() in existing_people:
             existing_row = existing_people[new_version_person.name.lower()]
@@ -437,7 +459,7 @@ def update_csv(grid_filename, existing_mailmerge_filename, output_filename, conf
             to_delete.append(existing_person_name)
     for name in to_delete:
         del existing_people[name]
-    write_csv(output_filename, list(existing_people.values()))
+    return existing_people
 
 
 if __name__ == "__main__":
@@ -467,9 +489,9 @@ Do not rearrange the first 6 columns of the output!
                 config[sub_dict][int(k)] = v
                 del config[sub_dict][k]
     if args.update is None and args.daily is None:
-        people = load_grid_schedule(args.infile, config)
+        people = load_grid_schedule_csv(args.infile, config)
         write_csv(args.outfile, people)
     elif args.daily is None:
         update_csv(args.infile, args.update, args.outfile, config)
     else:
-        daily_shifts(args.daily, args.infile, args.outfile)
+        daily_shifts_csv(args.daily, args.infile, args.outfile)
