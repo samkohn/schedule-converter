@@ -5,10 +5,12 @@ from dataclasses import dataclass, field as dc_field
 import json
 import re
 
+class SpreadsheetLocationError(Exception):
+    pass
 
 @dataclass
 class SignupCell:
-    content: str
+    content: list
     row: int
     column: int
     date: str
@@ -16,6 +18,7 @@ class SignupCell:
     shift_type: str
     name: str = None
     phone: str = None
+    email: str = None
 
 
 @dataclass(order=True)
@@ -68,6 +71,7 @@ class MailMergeRow:
     first_name: str
     last_name: str
     phone: str
+    email: str
     walkthrough_shifts: list
     phonebank_shifts: list
     other_columns: dict
@@ -78,6 +82,7 @@ class MailMergeRow:
             self.first_name,
             self.last_name,
             self.phone,
+            self.email,
             self.shifts_to_str(self.walkthrough_shifts),
             self.shifts_to_str(self.phonebank_shifts),
         ]
@@ -106,6 +111,7 @@ class MailMergeRow:
             "First name",
             "Last name",
             "cell",
+            "Recipient",
             "Walkthrough shifts",
             "Phonebank shifts",
         ]
@@ -129,150 +135,57 @@ def columns_lookup(config, column_number):
         # return f"{day_lookup[day]}, 11/{day:02d}"
 
 
-def good_columns(config):
+def weekday_columns(config):
     columns = []
     for column in config["columns"]:
         columns.append(column)
-        columns.append(column + 1)
+        columns.append(column + 2)
     return columns
-# good_columns = [
-    # x for x in range(59) if (x % 5 in (1, 2)) and x > 9 and (x < 26 or x > 34)
-# ]
-# weekend_columns = [26, 27, 31, 32]
+
 def weekend_columns(config):
     columns = []
     for column in config["weekend_columns"]:
         columns.append(column)
-        columns.append(column + 1)
+        columns.append(column + 2)
     return columns
 
-# day_lookup = {
-    # 8: "Monday",
-    # 9: "Tuesday",
-    # 10: "Wednesday",
-    # 11: "Thursday",
-    # 12: "Friday",
-    # 13: "Saturday",
-    # 14: "Sunday",
-    # 15: "Monday",
-    # 16: "Tuesday",
-    # 17: "Wednesday",
-    # 18: "Thursday",
-    # 19: "Friday",
-# }
+def good_columns(config):
+    return weekday_columns(config) + weekend_columns(config)
 
+def schedule_lookup(config, row_number, column_number):
+    """Convert from a row and column number to event date, time and shift type.
 
-def rows_lookup(config, index):
-    row_number = index + 1
-    time_block_defs = config["rows"]
-    last_block = None
+    row_number and column_number should be 1-based!!!
+    """
+    if column_number in weekday_columns(config):
+        row_key = "rows"
+        column_key = "columns"
+    elif column_number in weekend_columns(config):
+        row_key = "weekend_rows"
+        column_key = "weekend_columns"
+    else:
+        raise SpreadsheetLocationError(f"Column {column_number} isn't a cell for someone's name")
+    # For columns, could be Organizer 1 or Organizer 2 so have to check
+    if column_number in config[column_key]:
+        date = config[column_key][column_number]
+    elif column_number - 2 in config[column_key]:
+        date = config[column_key][column_number - 2]
+    else:
+        raise SpreadsheetLocationError(f"Column {column_number} isn't conforming to the config!")
+
+    # Look up the shift type and time from the row
+    time_block_defs = config[row_key]
+    last_block = [None, None]
     for time_block_start_row in sorted(time_block_defs):
         if time_block_start_row > row_number:
-            return "walkthrough", last_block
+            if last_block is None:
+                # Then this row should be ignored ...
+                return None, None, None
+            time, shift_type = last_block
         else:
             last_block = time_block_defs[time_block_start_row]
+    return date, time, shift_type
 
-    # first_hour = 9
-    # walkthrough_start_row = 6
-    # num_rows_slot_9to10 = 1
-    # num_rows_slot_10to11 = 10
-    # num_rows_slot_11to12 = 11
-    # num_rows_slot_12to1 = 11
-    # num_rows_slot_1to2 = 10
-    # num_rows_slot_2to3 = 9
-    # num_rows_slot_3to430 = 8
-    # num_rows_slot_debrief = 4
-    # num_rows_slot_5to6 = 9
-    # num_rows_slot_6to7 = 8
-    # num_rows_slot_7to8 = 4
-
-    # row_lengths = [
-        # walkthrough_start_row,
-        # num_rows_slot_9to10,
-        # num_rows_slot_10to11,
-        # num_rows_slot_11to12,
-        # num_rows_slot_12to1,
-        # num_rows_slot_1to2,
-        # num_rows_slot_2to3,
-        # num_rows_slot_3to430,
-        # num_rows_slot_debrief,
-        # num_rows_slot_5to6,
-        # num_rows_slot_6to7,
-        # num_rows_slot_7to8,
-    # ]
-
-    # row_boundaries = [sum(row_lengths[:i]) for i in range(1, len(row_lengths) + 1)]
-
-    # if index < walkthrough_start_row:
-        # return (None, None)
-    # for i, boundary in enumerate(row_boundaries):
-        # if index < boundary:
-            # hour = i - 1 + first_hour
-            # break
-    # else:  # if no break
-        # raise ValueError("Couldn't find appropriate hour slot")
-    # if hour == 15:
-        # time_str = "3:00PM - 4:30PM"
-    # else:
-        # time_str = (
-            # f"{hour_24_to_12(hour)}:00{ampm(hour)} - "
-            # f"{hour_24_to_12(hour + 1)}:00{ampm(hour + 1)}"
-        # )
-    # if hour < 16:
-        # return ("walkthrough", time_str)
-    # elif hour == 16:
-        # return (None, None)
-    # else:
-        # return ("phonebank", time_str)
-
-
-def weekend_rows_lookup(index):
-    walkthrough_start_row = 6
-    num_rows_slot_10to1 = 11
-    num_rows_slot_2to5 = 5
-    num_rows_slot_phonebanklabel = 6
-    num_rows_slot_2to3 = 11
-    num_rows_slot_3to4 = 9
-    num_rows_slot_4to5 = 9
-    num_rows_slot_5to6 = 11
-
-    row_lengths = [
-        walkthrough_start_row,
-        num_rows_slot_10to1,
-        num_rows_slot_2to5,
-        num_rows_slot_phonebanklabel,
-        num_rows_slot_2to3,
-        num_rows_slot_3to4,
-        num_rows_slot_4to5,
-        num_rows_slot_5to6,
-    ]
-
-    row_boundaries = [sum(row_lengths[:i]) for i in range(1, len(row_lengths) + 1)]
-
-    if index < walkthrough_start_row:
-        return (None, None)
-    for i, boundary in enumerate(row_boundaries):
-        if index < boundary:
-            shift_slot = i
-            break
-    else:  # if no break
-        raise ValueError("Couldn't find appropriate hour slot")
-    shift_slots = [
-        "10:00AM - 1:00PM",
-        "2:00PM - 5:00PM",
-        None,
-        "2:00PM - 3:00PM",
-        "3:00PM - 4:00PM",
-        "4:00PM - 5:00PM",
-        "5:00PM - 6:00PM",
-    ]
-    time_str = shift_slots[shift_slot]
-    if shift_slot < 2:
-        return ("walkthrough", time_str)
-    elif shift_slot == 2:
-        return (None, None)
-    else:
-        return ("phonebank", time_str)
 
 
 def hour_24_to_12(hour_24):
@@ -289,17 +202,18 @@ def ampm(hour):
 ### Regexes
 NAME_REGEX = r"^[^0-9(\n]+[^0-9,?(\n- ]"
 PHONE_REGEX = r"((\(?[0-9]\)?[-.]?){10})"
+EMAIL_REGEX = r"\S+@\S+"  # An @ surrounded by 1 or more non-whitespace characters
 
 
-def extract_name_phone(content):
-    name = re.search(NAME_REGEX, content)
-    if name:
-        name = name.group(0)
+def extract_phone_email(content):
     phone = re.search(PHONE_REGEX, content)
     if phone:
         phone = phone.group(0)
         phone = "".join([s for s in phone if s in "0123456789"])
-    return (name, phone)
+    email = re.search(EMAIL_REGEX, content)
+    if email:
+        email = email.group(0)
+    return phone, email
 
 
 def scan_csv(filename, config):
@@ -312,44 +226,41 @@ def scan_csv(filename, config):
                 continue
             for column_number in good_columns(config):
                 column_index = column_number - 1
-                if len(row[column_index]) > 5:
-                    content = row[column_index]
-                    name, phone = extract_name_phone(content)
-                    date = columns_lookup(config, column_number)
-                    shift_type, time = rows_lookup(config, row_index)
-                    if time is not None:
-                        signups.append(
-                            SignupCell(
-                                content,
-                                row_number,
-                                column_number,
-                                date,
-                                time,
-                                shift_type,
-                                name,
-                                phone,
-                            )
-                        )
-            for column in weekend_columns(config):
-                if len(row[column]) > 5:
-                    content = row[column]
-                    name, phone = extract_name_phone(content)
-                    date = columns_lookup(config, column)
-                    shift_type, time = weekend_rows_lookup(row_number)
-                    if time is not None:
-                        signups.append(
-                            SignupCell(
-                                content,
-                                row_number,
-                                column,
-                                date,
-                                time,
-                                shift_type,
-                                name,
-                                phone,
-                            )
-                        )
+                name = row[column_index]
+                email_phone_string = row[column_index + 1]
+                signup = parse_cell(name, email_phone_string, row_index,
+                    column_index)
+                if signup is not None:
+                    signups.append(signup)
     return signups
+
+
+def parse_cell(name, email_phone_string, row_index, column_index):
+    """Create a SignupCell object based on the content and row/column
+    of a spreadsheet cell.
+
+    row_index and column_index should be 0-based!!!
+    """
+    if len(name) <= 5:
+        return
+    column_number = column_index + 1
+    row_number = row_index + 1
+    phone, email = extract_phone_email(email_phone_string)
+    date, time, shift_type = schedule_lookup(config, row_number, column_number)
+    if time is not None:
+        return (
+            SignupCell(
+                [name, email_phone_string],
+                row_number,
+                column_number,
+                date,
+                time,
+                shift_type,
+                name,
+                phone,
+                email,
+            )
+        )
 
 
 def aggregate_signups(signups):
