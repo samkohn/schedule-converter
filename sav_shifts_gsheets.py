@@ -6,9 +6,14 @@ import gspread
 import sav_shifts
 
 
-def scan_gsheet(url, tab_name, config):
+def open_spreadsheet(url):
     connection = gspread.oauth()
     spreadsheet = connection.open_by_url(url)
+    return spreadsheet
+
+
+def scan_gsheet(url, tab_name, config):
+    spreadsheet = open_spreadsheet(url)
     worksheet = spreadsheet.worksheet(tab_name)
     all_values = worksheet.get_all_values()
     signups = []
@@ -33,8 +38,28 @@ def load_grid_schedule(url, tab_name, config):
     return sorted(people)
 
 
-def write_schedule(location, people):
-    pass
+def write_schedule(url, tab_name, people):
+    spreadsheet = open_spreadsheet(url)
+    if tab_name in [ws.title for ws in spreadsheet.worksheets()]:
+        worksheet = spreadsheet.worksheet(tab_name)
+        if worksheet.frozen_row_count == 0:
+            worksheet.freeze(rows=1)
+    else:
+        worksheet = spreadsheet.add_worksheet(tab_name, rows=1000, cols=26)
+        worksheet.freeze(rows=1)
+    first_person = people[0]
+    headers = first_person.list_headers()
+    update = []
+    update.append({
+        "range": "A1:Z1",
+        "values": [headers],
+        })
+    update.append({
+        "range": "A2:Z",
+        "values": [person.to_list() for person in people],
+        })
+    worksheet.clear()
+    worksheet.batch_update(update)
 
 
 def update_schedule(existing_location, update_location, out_location, config):
@@ -60,4 +85,4 @@ if __name__ == "__main__":
                 del config[sub_dict][k]
 
     people = load_grid_schedule(args.in_url, args.tab_name, config)
-    sav_shifts.write_csv(args.outfile, people)
+    write_schedule(args.outfile, "10/23 PM", people)
