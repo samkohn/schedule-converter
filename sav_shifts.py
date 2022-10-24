@@ -228,14 +228,15 @@ def scan_csv(filename, config):
                 column_index = column_number - 1
                 name = row[column_index]
                 email_phone_string = row[column_index + 1]
-                signup = parse_cell(name, email_phone_string, row_index,
-                    column_index)
+                signup = parse_cell(
+                    name, email_phone_string, row_index, column_index, config
+                )
                 if signup is not None:
                     signups.append(signup)
     return signups
 
 
-def parse_cell(name, email_phone_string, row_index, column_index):
+def parse_cell(name, email_phone_string, row_index, column_index, config):
     """Create a SignupCell object based on the content and row/column
     of a spreadsheet cell.
 
