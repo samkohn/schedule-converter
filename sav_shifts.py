@@ -29,6 +29,7 @@ class SignupCell:
 class PersonSchedule:
     name: str
     phone: str
+    email: str
     walkthrough_shifts: list = dc_field(default_factory=list)
     phonebank_shifts: list = dc_field(default_factory=list)
 
@@ -38,6 +39,7 @@ class PersonSchedule:
             self.first_name(),
             self.last_name(),
             self.phone,
+            self.email,
             self.shifts_to_str(self.walkthrough_shifts),
             self.shifts_to_str(self.phonebank_shifts),
         ]
@@ -49,6 +51,7 @@ class PersonSchedule:
             "First name",
             "Last name",
             "cell",
+            "Recipient",
             "Walkthrough shifts",
             "Phonebank shifts",
         ]
@@ -161,17 +164,8 @@ class MailMergeRow:
         return re.search(r".*(?= from )", shift_string)[0].split(", ")[1]
 
     def list_headers(self):
-        standard_columns = [
-            "Full name",
-            "First name",
-            "Last name",
-            "cell",
-            "Recipient",
-            "Walkthrough shifts",
-            "Phonebank shifts",
-        ]
         additional_columns = list(self.other_columns.keys())
-        return standard_columns + additional_columns
+        return PersonSchedule.list_headers() + additional_columns
 
     def process_shifts_list(self):
         self.walkthrough_shifts = self.shifts_to_list(self.walkthrough_shifts)
@@ -346,12 +340,14 @@ def aggregate_signups(signups):
                 people[signup.name] = PersonSchedule(
                     signup.name,
                     signup.phone,
+                    signup.email,
                     walkthrough_shifts=[(signup.date, signup.time, signup.turf, signup.hq)],
                 )
             elif signup.shift_type == "phonebank":
                 people[signup.name] = PersonSchedule(
                     signup.name,
                     signup.phone,
+                    signup.email,
                     phonebank_shifts=[(signup.date, signup.time)],
                 )
             else:
@@ -376,13 +372,14 @@ def load_grid_schedule_csv(filename, config):
 
 def scan_mailmerge_csv(filename):
     people = {}
+    num_standard_columns = len(PersonSchedule.list_headers())
     with open(filename, "r") as infile:
         csv_reader = csv.reader(infile)
         for i, row in enumerate(csv_reader):
             print(row)
             if i == 0:
                 header = row
-                additional_columns = row[6:]
+                additional_columns = row[num_standard_columns:]
                 continue
             person_row = parse_mailmerge_row(row, additional_columns)
             people[person_row.full_name.lower()] = person_row
@@ -393,8 +390,9 @@ def parse_mailmerge_row(row, additional_columns):
     """Parse a row (list of strings) from the output-formatted spreadsheet into a
     MailMergeRow.
     """
-    additional_values = dict(zip(additional_columns, row[6:]))
-    person_row = MailMergeRow(*row[:6], additional_values)
+    num_standard_columns = len(PersonSchedule.list_headers())
+    additional_values = dict(zip(additional_columns, row[num_standard_columns:]))
+    person_row = MailMergeRow(*row[:num_standard_columns], additional_values)
     person_row.process_shifts_list()
     return person_row
 
@@ -473,7 +471,7 @@ then add people's email addresses in a new column to the right.
 Then when you run the script again, include "--update <existing_output.csv>"
 so that the email addresses and other custom columns are preserved
 and copied appropriately into the new output.
-Do not rearrange the first 6 columns of the output!
+Do not rearrange the first 7 columns of the output!
 """
     )
     parser.add_argument("infile")
