@@ -147,17 +147,42 @@ def parse_setup(url):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="""Manage shift signups using the standard UC-UAW shift signup spreadsheet!
+
+This command will read shifts from the signup calendar and collect
+each worker's shifts so that you can see for each worker when they're signed up.
+It will also parse their phone and email addresses so you can quickly reach out to them.
+Lastly, you can make a list of only workers who have shifts on a certain day.
+
+To configure the script, make a spreadsheet with a tab called Setup.
+(The URL for this spreadsheet is the "url" command-line parameter.)
+Cell B2 should be the URL of the spreadsheet document containing the shift signups
+calendar.
+Cell B3 should be the name of the tab with the shift signups calendar.
+
+Separately, you need a JSON configuration file which you pass to this script
+as the --config option.
+The config file should describe the layout of the signups calendar spreadsheet."""
+    )
     parser.add_argument("url", help="The URL of the output spreadsheet with Setup tab")
-    parser.add_argument("--daily")
+    parser.add_argument(
+        "--daily",
+        metavar="DATE_STRING",
+        nargs=1,
+        help='The date, e.g. "Wednesday, 10/26", for the script to filter by '
+        "and only show shifts from that date. The date string should match the config file. "
+        "The shift list filtered is whichever tab is farthest to the right.",
+    )
     parser.add_argument(
         "--update",
         nargs="?",
         default=False,
+        metavar="BASE_TAB_NAME",
         help="Carry over custom fields from rightmost tab, "
         "or provide a specific tab name to use",
     )  # If flag not present, will be False; if flag present with no value, will be None
-    parser.add_argument("--config", default="config.json")
+    parser.add_argument("--config", default="config.json", metavar="JSON_FILE")
     args = parser.parse_args()
     with open(args.config, "r") as configfile:
         config = json.load(configfile)
