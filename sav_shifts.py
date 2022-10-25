@@ -278,19 +278,30 @@ def scan_csv(filename, config):
     with open(filename, "r") as infile:
         csv_reader = csv.reader(infile)
         for row_index, row in enumerate(csv_reader):
-            row_number = row_index + 1
-            if row_number < min(config["rows"].keys()):
-                continue
-            for column_number in good_columns(config):
-                column_index = column_number - 1
-                name = row[column_index]
-                email_phone_string = row[column_index + 1]
-                turf_string = row[column_index + 4 if column_index+2 in good_columns(config) else column_index + 2]
-                signup = parse_cell(
-                    name, email_phone_string, turf_string, row_index, column_index, config
-                )
-                if signup is not None:
-                    signups.append(signup)
+            new_signups = parse_row(row, row_index, config)
+            if new_signups is not None:
+                signups.extend(new_signups)
+    return signups
+
+def parse_row(row, row_index, config):
+    """Return a list of SignupCells from that row.
+
+    row_index is 0-based!
+    """
+    signups = []
+    row_number = row_index + 1
+    if row_number < min(config["rows"].keys()):
+        return
+    for column_number in good_columns(config):
+        column_index = column_number - 1
+        name = row[column_index]
+        email_phone_string = row[column_index + 1]
+        turf_string = row[column_index + 4 if column_number+2 in good_columns(config) else column_index + 2]
+        signup = parse_cell(
+            name, email_phone_string, turf_string, row_index, column_index, config
+        )
+        if signup is not None:
+            signups.append(signup)
     return signups
 
 

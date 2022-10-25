@@ -32,18 +32,9 @@ def scan_gsheet(in_location, config):
     all_values = worksheet.get_all_values()
     signups = []
     for row_index, row in enumerate(all_values):
-        row_number = row_index + 1
-        if row_number < min(config["rows"].keys()):
-            continue
-        for column_number in sav_shifts.good_columns(config):
-            column_index = column_number - 1
-            name = row[column_index]
-            email_phone_string = row[column_index + 1]
-            signup = sav_shifts.parse_cell(
-                name, email_phone_string, row_index, column_index, config
-            )
-            if signup is not None:
-                signups.append(signup)
+        new_signups = sav_shifts.parse_row(row, row_index, config)
+        if new_signups is not None:
+            signups.extend(new_signups)
     return signups
 
 
