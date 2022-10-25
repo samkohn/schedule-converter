@@ -19,6 +19,8 @@ class SignupCell:
     name: str = None
     phone: str = None
     email: str = None
+    turf: str = None
+    hq: str = None
 
 
 @dataclass(order=True)
@@ -50,13 +52,42 @@ class PersonSchedule:
         ]
 
     @staticmethod
+    def shifts_to_list(shifts_str):
+        if shifts_str == "":
+            return []
+        shifts_str_list = shifts_str.split("\n")
+        return [MailMergeRow.parse_shiftstring(x) for x in shifts_str_list]
+    
+    @staticmethod
+    def parse_shiftstring(shift_string):
+        date = re.search(r".*(?= from )", shift_string)
+        time = re.search(r"(?<= from ).*?(?=( for )|( \[)|$)", shift_string)
+        if not (date and time):
+            raise ValueError(f"String '{shift_string}' is not a valid shift (requires a date and time)")
+        turf = re.search(r"(?<= for ).*?(?=( \[)|$)", shift_string)
+        hq = re.search(r"(?<=\[Report to: ).*(?=\])", shift_string)
+        return [m[0] if m else None for m in ([date, time, turf, hq] if turf or hq else [date,time])]
+
+    @staticmethod
     def shifts_to_str(shift_list):
         return "\n".join(
             sorted(
-                [f"{shift[0]} from {shift[1]}" for shift in shift_list],
-                key=lambda shift_str: shift_str.split(" from ")[0].split(", ")[1],
+                [MailMergeRow._shift_to_str(shift) for shift in shift_list],
+                key=MailMergeRow._extract_date
             )
         )
+    
+    @staticmethod
+    def _shift_to_str(shift):
+        string = f"{shift[0]} from {shift[1]}" 
+        if len(shift)>2:
+            if shift[2]: string += f" for {shift[2]}"
+            if shift[3]: string += f" [Report to: {shift[3]}]"
+        return string
+    
+    @staticmethod
+    def _extract_date(shift_string):
+        return re.search(r".*(?= from )", shift_string)[0].split(", ")[1]
 
     def first_name(self):
         return self.name.split()[0]
@@ -94,16 +125,38 @@ class MailMergeRow:
         if shifts_str == "":
             return []
         shifts_str_list = shifts_str.split("\n")
-        return [x.split(" from ") for x in shifts_str_list]
+        return [MailMergeRow.parse_shiftstring(x) for x in shifts_str_list]
+    
+    @staticmethod
+    def parse_shiftstring(shift_string):
+        date = re.search(r".*(?= from )", shift_string)
+        time = re.search(r"(?<= from ).*?(?=( for )|( \[)|$)", shift_string)
+        if not (date and time):
+            raise ValueError(f"String '{shift_string}' is not a valid shift (requires a date and time)")
+        turf = re.search(r"(?<= for ).*?(?=( \[)|$)", shift_string)
+        hq = re.search(r"(?<=\[Report to: ).*(?=\])", shift_string)
+        return [m[0] if m else None for m in ([date, time, turf, hq] if turf or hq else [date,time])]
 
     @staticmethod
     def shifts_to_str(shift_list):
         return "\n".join(
             sorted(
-                [f"{shift[0]} from {shift[1]}" for shift in shift_list],
-                key=lambda shift_str: shift_str.split(" from ")[0].split(", ")[1],
+                [MailMergeRow._shift_to_str(shift) for shift in shift_list],
+                key=MailMergeRow._extract_date
             )
         )
+    
+    @staticmethod
+    def _shift_to_str(shift):
+        string = f"{shift[0]} from {shift[1]}" 
+        if len(shift)>2:
+            if shift[2]: string += f" for {shift[2]}"
+            if shift[3]: string += f" [Report to: {shift[3]}]"
+        return string
+    
+    @staticmethod
+    def _extract_date(shift_string):
+        return re.search(r".*(?= from )", shift_string)[0].split(", ")[1]
 
     def list_headers(self):
         standard_columns = [
@@ -186,6 +239,14 @@ def schedule_lookup(config, row_number, column_number):
             last_block = time_block_defs[time_block_start_row]
     return date, time, shift_type
 
+def parse_turfHQ(turf_string):
+    split = turf_string.split("//")
+    # Replace blank turf ("") with None
+    turf = split[0].strip() if split[0].strip() else None
+    if len(split)<2:
+        return turf, None
+    else:
+        return turf, split[1].strip()
 
 
 def hour_24_to_12(hour_24):
@@ -228,15 +289,16 @@ def scan_csv(filename, config):
                 column_index = column_number - 1
                 name = row[column_index]
                 email_phone_string = row[column_index + 1]
+                turf_string = row[column_index + 4 if column_index+2 in good_columns(config) else column_index + 2]
                 signup = parse_cell(
-                    name, email_phone_string, row_index, column_index, config
+                    name, email_phone_string, turf_string, row_index, column_index, config
                 )
                 if signup is not None:
                     signups.append(signup)
     return signups
 
 
-def parse_cell(name, email_phone_string, row_index, column_index, config):
+def parse_cell(name, email_phone_string, turf_string, row_index, column_index, config):
     """Create a SignupCell object based on the content and row/column
     of a spreadsheet cell.
 
@@ -248,6 +310,7 @@ def parse_cell(name, email_phone_string, row_index, column_index, config):
     row_number = row_index + 1
     phone, email = extract_phone_email(email_phone_string)
     date, time, shift_type = schedule_lookup(config, row_number, column_number)
+    turf, hq = parse_turfHQ(turf_string)
     if time is not None:
         return (
             SignupCell(
@@ -260,6 +323,8 @@ def parse_cell(name, email_phone_string, row_index, column_index, config):
                 name,
                 phone,
                 email,
+                turf,
+                hq
             )
         )
 
@@ -270,7 +335,7 @@ def aggregate_signups(signups):
         if signup.name in people:
             if signup.shift_type == "walkthrough":
                 people[signup.name].walkthrough_shifts.append(
-                    (signup.date, signup.time)
+                    (signup.date, signup.time, signup.turf, signup.hq)
                 )
             elif signup.shift_type == "phonebank":
                 people[signup.name].phonebank_shifts.append((signup.date, signup.time))
@@ -281,7 +346,7 @@ def aggregate_signups(signups):
                 people[signup.name] = PersonSchedule(
                     signup.name,
                     signup.phone,
-                    walkthrough_shifts=[(signup.date, signup.time)],
+                    walkthrough_shifts=[(signup.date, signup.time, signup.turf, signup.hq)],
                 )
             elif signup.shift_type == "phonebank":
                 people[signup.name] = PersonSchedule(
@@ -314,6 +379,7 @@ def scan_mailmerge_csv(filename):
     with open(filename, "r") as infile:
         csv_reader = csv.reader(infile)
         for i, row in enumerate(csv_reader):
+            print(row)
             if i == 0:
                 header = row
                 additional_columns = row[6:]
