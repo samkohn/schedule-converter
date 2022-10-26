@@ -190,7 +190,6 @@ The config file should describe the layout of the signups calendar spreadsheet."
                 config[sub_dict][int(k)] = v
                 del config[sub_dict][k]
     signups_location = parse_setup(args.url)
-    print(signups_location)
     if args.daily is None:
         process_calendar(
             config, signups_location, SpreadsheetLocation(args.url, None), args.update

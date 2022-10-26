@@ -388,7 +388,6 @@ def scan_mailmerge_csv(filename):
     with open(filename, "r") as infile:
         csv_reader = csv.reader(infile)
         for i, row in enumerate(csv_reader):
-            print(row)
             if i == 0:
                 header = row
                 additional_columns = row[num_standard_columns:]
