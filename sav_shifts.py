@@ -259,7 +259,8 @@ def ampm(hour):
 ### Regexes
 NAME_REGEX = r"^[^0-9(\n]+[^0-9,?(\n- ]"
 PHONE_REGEX = r"((\(?[0-9]\)?[-.]?){10})"
-EMAIL_REGEX = r"\S+@\S+"  # An @ surrounded by 1 or more non-whitespace characters
+# An @ surrounded by 1 or more letters, numbers, -_.
+EMAIL_REGEX = r"[A-Za-z0-9\-_.]+@[A-Za-z0-9\-_.]+"
 
 
 def extract_phone_email(content):
