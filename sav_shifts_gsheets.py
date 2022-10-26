@@ -169,7 +169,6 @@ The config file should describe the layout of the signups calendar spreadsheet."
     parser.add_argument(
         "--daily",
         metavar="DATE_STRING",
-        nargs=1,
         help='The date, e.g. "Wednesday, 10/26", for the script to filter by '
         "and only show shifts from that date. The date string should match the config file. "
         "The shift list filtered is whichever tab is farthest to the right.",
