@@ -449,12 +449,18 @@ def update_with_new_shifts(existing_people, new_version_people):
             # update phonebank and walkthrough shifts
             existing_row.walkthrough_shifts = new_version_person.walkthrough_shifts
             existing_row.phonebank_shifts = new_version_person.phonebank_shifts
+            # update phone and email if present
+            if new_version_person.email:
+                existing_row.email = new_version_person.email
+            if new_version_person.phone:
+                existing_row.phone = new_version_person.phone
         else:
             new_mailmergerow = MailMergeRow(
                 new_version_person.name,
                 new_version_person.first_name(),
                 new_version_person.last_name(),
                 new_version_person.phone,
+                new_version_person.email,
                 new_version_person.walkthrough_shifts,
                 new_version_person.phonebank_shifts,
                 {},
